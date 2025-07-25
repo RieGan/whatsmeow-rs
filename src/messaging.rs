@@ -2,6 +2,7 @@ use crate::{
     binary::{Node, NodeContent},
     error::{Error, Result},
     types::{JID, SendableMessage, TextMessage, MessageInfo, MessageType},
+    proto::{ProtoUtils, MessageKey, MessageText},
 };
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -43,10 +44,10 @@ impl MessageBuilder {
         }
     }
     
-    /// Build a text message node
+    /// Build a text message node using protobuf structures
     fn build_text_message(&self, message_id: String, from_jid: JID, text: &str) -> Result<Node> {
         let mut attrs = HashMap::new();
-        attrs.insert("id".to_string(), message_id);
+        attrs.insert("id".to_string(), message_id.clone());
         attrs.insert("type".to_string(), "text".to_string());
         attrs.insert("to".to_string(), self.to.to_string());
         attrs.insert("from".to_string(), from_jid.to_string());
@@ -57,11 +58,22 @@ impl MessageBuilder {
             .as_secs();
         attrs.insert("t".to_string(), timestamp.to_string());
         
-        // Create the message content node
+        // Create protobuf message key
+        let message_key = ProtoUtils::create_message_key(
+            &self.to.to_string(),
+            &message_id,
+            true // from_me = true since we're sending
+        );
+        
+        // Create protobuf text message
+        let text_message = ProtoUtils::create_text_message(text);
+        
+        // Create the message content with protobuf binary data
+        let proto_data = ProtoUtils::proto_to_bytes(&text_message);
         let text_node = Node {
             tag: "body".to_string(),
             attrs: HashMap::new(),
-            content: NodeContent::Text(text.to_string()),
+            content: NodeContent::Binary(proto_data),
         };
         
         Ok(Node {

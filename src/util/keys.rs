@@ -2,6 +2,9 @@ use crate::error::{Error, Result};
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use curve25519_dalek::{constants, scalar::Scalar, montgomery::MontgomeryPoint};
 
+#[cfg(test)]
+mod tests;
+
 /// Elliptic curve key pair for X25519  
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ECKeyPair {

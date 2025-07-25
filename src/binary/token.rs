@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 
+#[cfg(test)]
+mod tests;
+
 /// Dictionary version sent to the server
 pub const DICT_VERSION: u8 = 3;
 

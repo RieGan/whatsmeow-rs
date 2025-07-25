@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+#[cfg(test)]
+mod tests;
+
 /// JID (Jabber ID) represents a WhatsApp user or group identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JID {

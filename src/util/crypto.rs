@@ -7,6 +7,9 @@ use hkdf::Hkdf;
 use ring::digest;
 use sha2::Sha256;
 
+#[cfg(test)]
+mod tests;
+
 /// AES-GCM encryption utility
 pub struct AesGcm {
     cipher: Aes256Gcm,
