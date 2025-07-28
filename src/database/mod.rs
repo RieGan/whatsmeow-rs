@@ -3,6 +3,7 @@
 pub mod schema;
 pub mod sqlite;
 pub mod migrations;
+pub mod pool;
 
 use crate::error::{Error, Result};
 use sqlx::{Pool, Sqlite, Row};
