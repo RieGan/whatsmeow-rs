@@ -14,6 +14,7 @@
 pub mod auth;
 pub mod binary;
 pub mod client;
+pub mod database;
 pub mod error;
 pub mod group;
 pub mod media;

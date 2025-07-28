@@ -45,4 +45,7 @@ pub enum Error {
     
     #[error("IQ error - code: {code}, text: {text}")]
     IQ { code: u16, text: String },
+    
+    #[error("Database error: {0}")]
+    Database(String),
 }
