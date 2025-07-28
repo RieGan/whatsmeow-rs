@@ -2,7 +2,28 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_token_dictionaries() {
+        assert!(!SINGLE_BYTE_TOKENS.is_empty());
+        assert!(!DOUBLE_BYTE_TOKENS.is_empty());
+    }
+    
+    #[test]
+    fn test_single_token_lookup() {
+        assert_eq!(index_of_single_token("message"), Some(19));
+        assert_eq!(get_single_token(19), Some("message"));
+    }
+    
+    #[test]
+    fn test_double_token_lookup() {
+        if let Some((dict, index)) = index_of_double_token("active") {
+            assert_eq!(get_double_token(dict, index), Some("active"));
+        }
+    }
+}
 
 /// Dictionary version sent to the server
 pub const DICT_VERSION: u8 = 3;

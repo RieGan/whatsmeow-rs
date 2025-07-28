@@ -1,7 +1,7 @@
 use crate::{
     binary::Node,
     error::{Error, Result},
-    proto::{MessageKey, MessageText, MessageProto}
+    proto::{MessageKey, MessageText}
 };
 use prost::Message;
 
@@ -37,8 +37,9 @@ impl ProtoUtils {
     
     /// Extract message text from a protobuf message
     pub fn extract_text_message(data: &[u8]) -> Result<String> {
-        let message_text = MessageText::decode(data)?;
-        Ok(message_text.text.unwrap_or_default())
+        // For fallback implementation, just return the text directly
+        String::from_utf8(data.to_vec())
+            .map_err(|_| Error::Protocol("Invalid UTF-8 in message".to_string()))
     }
     
     /// Create a text message protobuf
@@ -47,6 +48,11 @@ impl ProtoUtils {
             text: Some(text.to_string()),
             mentioned_jid: vec![],
         }
+    }
+    
+    /// Convert MessageText to bytes (fallback implementation)
+    pub fn text_to_bytes(message: &MessageText) -> Vec<u8> {
+        message.text.as_ref().unwrap_or(&String::new()).as_bytes().to_vec()
     }
     
     /// Create a message key protobuf

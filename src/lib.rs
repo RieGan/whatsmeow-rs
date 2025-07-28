@@ -17,6 +17,7 @@ pub mod client;
 pub mod error;
 pub mod messaging;
 pub mod proto;
+pub mod signal;
 pub mod socket;
 pub mod store;
 pub mod types;

@@ -8,7 +8,29 @@ use ring::digest;
 use sha2::Sha256;
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_sha256() {
+        let data = b"hello world";
+        let hash = sha256(data);
+        assert_eq!(hash.len(), 32);
+    }
+    
+    #[test]
+    fn test_aes_gcm_encryption() {
+        let key = [1u8; 32];
+        let iv = [2u8; 12];
+        let plaintext = b"test message";
+        
+        let aes = AesGcm::new(&key).unwrap();
+        let ciphertext = aes.encrypt(&iv, plaintext).unwrap();
+        let decrypted = aes.decrypt(&iv, &ciphertext).unwrap();
+        
+        assert_eq!(decrypted, plaintext);
+    }
+}
 
 /// AES-GCM encryption utility
 pub struct AesGcm {

@@ -5,6 +5,7 @@ use crate::{
     util::keys::{ECKeyPair, SigningKeyPair},
 };
 use serde::{Deserialize, Serialize};
+use ed25519_dalek::Signer;
 
 /// Signal protocol pre-key
 #[derive(Debug, Clone, Serialize, Deserialize)]

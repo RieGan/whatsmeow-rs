@@ -2,7 +2,25 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_jid_parsing() {
+        let jid_str = "1234567890@s.whatsapp.net";
+        let jid = JID::parse(jid_str).unwrap();
+        assert_eq!(jid.user, "1234567890");
+        assert_eq!(jid.server, "s.whatsapp.net");
+        assert_eq!(jid.to_string(), jid_str);
+    }
+    
+    #[test]
+    fn test_group_jid() {
+        let group_jid = JID::new_group("groupid123");
+        assert_eq!(group_jid.server, "g.us");
+        assert!(group_jid.is_group());
+    }
+}
 
 /// JID (Jabber ID) represents a WhatsApp user or group identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -24,6 +42,21 @@ impl JID {
             server,
             ad: false,
         }
+    }
+    
+    /// Parse a JID from string format "user@server"
+    pub fn parse(jid_str: &str) -> Result<Self, crate::error::Error> {
+        let parts: Vec<&str> = jid_str.split('@').collect();
+        if parts.len() != 2 {
+            return Err(crate::error::Error::InvalidJID(format!("Invalid JID format: {}", jid_str)));
+        }
+        
+        Ok(Self::new(parts[0].to_string(), parts[1].to_string()))
+    }
+    
+    /// Create a new group JID
+    pub fn new_group(group_id: &str) -> Self {
+        Self::new(group_id.to_string(), "g.us".to_string())
     }
     
     /// Check if this is a user JID

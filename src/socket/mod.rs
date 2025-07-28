@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use tokio_tungstenite::{connect_async, tungstenite::Message, WebSocketStream, tungstenite::http::HeaderValue};
 use futures_util::{SinkExt, StreamExt};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use std::collections::HashMap;
 use url::Url;
 
@@ -172,19 +172,23 @@ impl NoiseSocket {
             return Err(Error::Connection("Socket not connected".to_string()));
         }
         
-        if let Some(ref mut handshake) = self.noise_handshake {
+        if self.noise_handshake.is_some() {
             info!("Starting Noise handshake with WhatsApp");
             
-            // Send handshake initiation
-            let init_message = handshake.create_client_init()?;
+            // Create init message
+            let init_message = {
+                let handshake = self.noise_handshake.as_mut().unwrap();
+                handshake.create_client_init()?
+            };
             self.send(init_message).await?;
             
-            // Wait for server response
+            // Wait for server response and process it
             if let Some(server_response) = self.receive().await? {
-                handshake.process_server_response(&server_response)?;
-                
-                // Send client finish message
-                let finish_message = handshake.create_client_finish()?;
+                let finish_message = {
+                    let handshake = self.noise_handshake.as_mut().unwrap();
+                    handshake.process_server_response(&server_response)?;
+                    handshake.create_client_finish()?
+                };
                 self.send(finish_message).await?;
                 
                 info!("Noise handshake completed successfully");

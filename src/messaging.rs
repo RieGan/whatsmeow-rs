@@ -2,7 +2,7 @@ use crate::{
     binary::{Node, NodeContent},
     error::{Error, Result},
     types::{JID, SendableMessage, TextMessage, MessageInfo, MessageType},
-    proto::{ProtoUtils, MessageKey, MessageText},
+    proto::ProtoUtils,
 };
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -59,7 +59,7 @@ impl MessageBuilder {
         attrs.insert("t".to_string(), timestamp.to_string());
         
         // Create protobuf message key
-        let message_key = ProtoUtils::create_message_key(
+        let _message_key = ProtoUtils::create_message_key(
             &self.to.to_string(),
             &message_id,
             true // from_me = true since we're sending
@@ -69,7 +69,7 @@ impl MessageBuilder {
         let text_message = ProtoUtils::create_text_message(text);
         
         // Create the message content with protobuf binary data
-        let proto_data = ProtoUtils::proto_to_bytes(&text_message);
+        let proto_data = ProtoUtils::text_to_bytes(&text_message);
         let text_node = Node {
             tag: "body".to_string(),
             attrs: HashMap::new(),

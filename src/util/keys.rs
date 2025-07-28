@@ -3,7 +3,34 @@ use ed25519_dalek::{SigningKey, VerifyingKey};
 use curve25519_dalek::{constants, scalar::Scalar, montgomery::MontgomeryPoint};
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_ec_keypair_generation() {
+        let keypair = ECKeyPair::generate();
+        assert_eq!(keypair.private_bytes().len(), 32);
+        assert_eq!(keypair.public_bytes().len(), 32);
+    }
+    
+    #[test]
+    fn test_signing_keypair_generation() {
+        let keypair = SigningKeyPair::generate();
+        assert_eq!(keypair.private_bytes().len(), 32);
+        assert_eq!(keypair.public_bytes().len(), 32);
+    }
+    
+    #[test]
+    fn test_ecdh() {
+        let alice = ECKeyPair::generate();
+        let bob = ECKeyPair::generate();
+        
+        let alice_shared = alice.ecdh(&bob.public_bytes());
+        let bob_shared = bob.ecdh(&alice.public_bytes());
+        
+        assert_eq!(alice_shared, bob_shared);
+    }
+}
 
 /// Elliptic curve key pair for X25519  
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

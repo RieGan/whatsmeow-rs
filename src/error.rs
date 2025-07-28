@@ -31,6 +31,9 @@ pub enum Error {
     #[error("Protocol error: {0}")]
     Protocol(String),
     
+    #[error("Invalid JID: {0}")]
+    InvalidJID(String),
+    
     #[error("Not logged in")]
     NotLoggedIn,
     
