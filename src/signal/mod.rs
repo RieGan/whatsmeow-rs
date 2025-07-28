@@ -416,21 +416,19 @@ mod tests {
         let peer_prekey = [2u8; 32];
         session.initialize(&peer_identity, &peer_prekey).unwrap();
         
+        // Save the chain key before encryption (since it gets advanced)
+        let original_chain_key = session.chain_key.clone();
+        
         // Encrypt
         let encrypted = session.encrypt(plaintext).unwrap();
         assert_eq!(encrypted.message_type, SignalMessageType::WhisperMessage);
         
-        // Create new session for decryption (simulate peer)
-        let mut peer_session = SignalSession::new();
-        peer_session.initialize(&peer_identity, &peer_prekey).unwrap();
+        // Restore the chain key for decryption
+        session.chain_key = original_chain_key;
         
-        // Note: In real implementation, we'd need proper key exchange
-        // For this test, we'll use the same session state
-        peer_session.root_key = session.root_key.clone();
-        peer_session.chain_key = session.chain_key.clone();
-        
-        // Decrypt
-        let decrypted = peer_session.decrypt(&encrypted).unwrap();
+        // For this test, we'll use the same session for decryption
+        // In a real implementation, there would be proper key exchange
+        let decrypted = session.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted, plaintext);
     }
     

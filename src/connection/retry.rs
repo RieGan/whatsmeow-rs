@@ -102,7 +102,7 @@ impl RetryPolicy {
             0.0
         };
         
-        Duration::from_secs_f64(capped_delay + jitter)
+        Duration::from_secs_f64((capped_delay + jitter).min(self.max_delay.as_secs_f64()))
     }
 }
 
@@ -598,7 +598,7 @@ mod tests {
         assert_eq!(breaker.state(), &CircuitState::Closed);
         
         breaker.record_failure();
-        assert_eq!(breaker.state(), &CircuitState::Open { opened_at: Instant::now() });
+        assert!(matches!(breaker.state(), CircuitState::Open { .. }));
         assert!(!breaker.is_request_allowed());
         
         // Should stay closed until timeout

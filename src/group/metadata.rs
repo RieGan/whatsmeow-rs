@@ -594,7 +594,10 @@ mod tests {
         let group_jid = create_test_group_jid();
         let user_jid = create_test_jid("user");
         
-        // First set an avatar
+        // First get metadata to ensure caching
+        let _ = manager.get_metadata(&group_jid).await.unwrap();
+        
+        // Then set an avatar
         let avatar_data = vec![0u8; 1024];
         manager.set_avatar(&group_jid, avatar_data, &user_jid).await.unwrap();
         

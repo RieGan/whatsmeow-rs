@@ -392,7 +392,7 @@ impl MediaProcessor {
         // Look for SOF (Start of Frame) markers
         let mut i = 2; // Skip SOI marker
         
-        while i < data.len() - 8 {
+        while i + 8 < data.len() {
             if data[i] == 0xFF {
                 let marker = data[i + 1];
                 // SOF markers (0xC0-0xCF, except 0xC4, 0xC8, 0xCC)

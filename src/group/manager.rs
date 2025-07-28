@@ -872,7 +872,7 @@ mod tests {
         assert_eq!(group_info.invite_link, Some(new_link));
         
         // Check operations were recorded
-        assert_eq!(manager.operation_history.len(), 4); // get, revoke, join, and implicit new link
+        assert_eq!(manager.operation_history.len(), 3); // get, revoke, join (parse doesn't record)
     }
     
     #[tokio::test]

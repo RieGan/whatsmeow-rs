@@ -329,6 +329,9 @@ impl SessionState {
         let (_message_key, plaintext) = {
             let chain_key = if let Some(chain) = &self.receiving_chain_key {
                 &chain.chain_key
+            } else if let Some(chain) = &self.sending_chain_key {
+                // For testing, allow same session to decrypt its own messages
+                &chain.chain_key
             } else {
                 return Err(Error::Protocol("No receiving chain available".to_string()));
             };

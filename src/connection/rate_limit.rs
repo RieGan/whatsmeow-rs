@@ -190,7 +190,11 @@ impl RateLimiter {
         let elapsed = now - *last_refill;
         
         // Refill one burst token per window duration
-        let tokens_to_add = (elapsed.as_secs() / self.config.window_duration.as_secs()) as u32;
+        let tokens_to_add = if self.config.window_duration.as_secs() > 0 {
+            (elapsed.as_secs() / self.config.window_duration.as_secs()) as u32
+        } else {
+            0
+        };
         
         if tokens_to_add > 0 {
             let mut burst_tokens = self.burst_tokens.lock().await;
