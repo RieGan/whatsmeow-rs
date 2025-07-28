@@ -2,7 +2,7 @@
 
 use crate::error::{Error, Result};
 use super::schema::{SCHEMA_VERSION, CREATE_TABLES, CREATE_INDEXES, CREATE_TRIGGERS};
-use sqlx::{SqlitePool, Row};
+use sqlx::SqlitePool;
 
 /// Run all database migrations
 pub async fn run_migrations(pool: &SqlitePool) -> Result<()> {
@@ -242,7 +242,6 @@ pub async fn validate_database(pool: &SqlitePool) -> Result<Vec<String>> {
 mod tests {
     use super::*;
     use crate::database::Database;
-    use tempfile::tempdir;
     
     async fn create_test_db() -> Database {
         let config = crate::database::DatabaseConfig {

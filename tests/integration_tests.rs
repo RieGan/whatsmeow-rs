@@ -40,7 +40,7 @@ async fn test_event_handler() {
     let store: Arc<dyn DeviceStore> = Arc::new(MemoryStore::new());
     let client = Client::new(store);
     
-    let mut event_received = false;
+    let _event_received = false;
     
     // Add event handler
     client.add_event_handler(Box::new(|event| {

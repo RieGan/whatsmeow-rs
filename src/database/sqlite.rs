@@ -174,7 +174,7 @@ impl SqliteGroupStore {
             let description: Option<String> = row.get(1);
             let creator_str: String = row.get(2);
             let created_at: DateTime<Utc> = row.get(3);
-            let avatar_url: Option<String> = row.get(4);
+            let _avatar_url: Option<String> = row.get(4);
             let invite_link: Option<String> = row.get(5);
             let settings_json: String = row.get(6);
             
@@ -439,8 +439,6 @@ impl SqliteSettingsStore {
 mod tests {
     use super::*;
     use crate::database::Database;
-    use tempfile::tempdir;
-    use std::time::SystemTime;
     
     async fn create_test_db() -> Database {
         let config = crate::database::DatabaseConfig {

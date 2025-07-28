@@ -462,7 +462,6 @@ impl CircuitBreaker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::sleep;
     
     #[test]
     fn test_retry_policy_delay_calculation() {

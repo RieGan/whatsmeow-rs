@@ -455,7 +455,7 @@ impl ParticipantManager {
         &mut self,
         group_jid: &JID,
         participants: Vec<JID>,
-        removed_by: &JID,
+        _removed_by: &JID,
     ) -> Result<ParticipantOperationResult> {
         let mut result = ParticipantOperationResult {
             operation: ParticipantOperationType::Remove,
@@ -508,7 +508,7 @@ impl ParticipantManager {
         &mut self,
         group_jid: &JID,
         participants: Vec<JID>,
-        promoted_by: &JID,
+        _promoted_by: &JID,
     ) -> Result<ParticipantOperationResult> {
         let mut result = ParticipantOperationResult {
             operation: ParticipantOperationType::Promote,
@@ -558,7 +558,7 @@ impl ParticipantManager {
         &mut self,
         group_jid: &JID,
         participants: Vec<JID>,
-        demoted_by: &JID,
+        _demoted_by: &JID,
     ) -> Result<ParticipantOperationResult> {
         let mut result = ParticipantOperationResult {
             operation: ParticipantOperationType::Demote,

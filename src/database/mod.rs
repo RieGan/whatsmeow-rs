@@ -4,14 +4,8 @@ pub mod schema;
 pub mod sqlite;
 pub mod migrations;
 
-use crate::{
-    error::{Error, Result},
-    types::JID,
-    store::DeviceData,
-};
-use async_trait::async_trait;
+use crate::error::{Error, Result};
 use sqlx::{Pool, Sqlite, Row};
-use std::collections::HashMap;
 
 /// Database connection pool type
 pub type DatabasePool = Pool<Sqlite>;
@@ -168,7 +162,6 @@ impl<'a> Transaction<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     
     async fn create_test_database() -> Database {
         let config = DatabaseConfig {

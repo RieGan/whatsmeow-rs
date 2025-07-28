@@ -165,7 +165,7 @@ impl Client {
         info!("Disconnecting from WhatsApp...");
         
         // If using connection manager, disconnect through that
-        let mut manager_guard = self.connection_manager.lock().await;
+        let manager_guard = self.connection_manager.lock().await;
         if let Some(ref manager) = *manager_guard {
             let _: Result<()> = manager.disconnect().await;
         }

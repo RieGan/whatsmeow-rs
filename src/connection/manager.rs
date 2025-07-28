@@ -3,7 +3,7 @@
 use super::{
     ConnectionState, ConnectionConfig, ConnectionStats, ConnectionEvent, 
     ConnectionEventHandler, LoggingEventHandler, calculate_backoff_delay, 
-    add_jitter, is_recoverable_error,
+    is_recoverable_error,
 };
 use crate::{
     error::{Error, Result},

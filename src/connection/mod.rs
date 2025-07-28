@@ -4,12 +4,8 @@ pub mod manager;
 pub mod retry;
 pub mod rate_limit;
 
-use crate::{
-    error::{Error, Result},
-    socket::NoiseSocket,
-};
+use crate::error::Error;
 use std::time::{Duration, Instant};
-use tokio::time::sleep;
 use serde::{Serialize, Deserialize};
 
 /// Connection state tracking

@@ -878,7 +878,7 @@ mod tests {
     #[tokio::test]
     async fn test_event_handling() {
         let mut manager = GroupManager::new();
-        let mut events_received: Vec<GroupEvent> = Vec::new();
+        let _events_received: Vec<GroupEvent> = Vec::new();
         
         // Add event handler
         manager.add_event_handler(move |event| {
