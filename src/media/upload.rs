@@ -146,7 +146,7 @@ impl MediaUploader {
         
         // Validate file exists and get size
         let metadata = tokio::fs::metadata(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         if !metadata.is_file() {
             return Err(Error::Protocol("Path is not a file".to_string()));
@@ -164,11 +164,11 @@ impl MediaUploader {
         
         // Read file data
         let mut file = File::open(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let mut file_data = Vec::with_capacity(file_size as usize);
         file.read_to_end(&mut file_data).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         // Upload the data
         let filename = path.file_name()
@@ -229,7 +229,7 @@ impl MediaUploader {
     ) -> Result<MediaInfo> {
         let path = file_path.as_ref();
         let metadata = tokio::fs::metadata(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let file_size = metadata.len();
         let progress_callback = Arc::new(progress_callback);
@@ -239,7 +239,7 @@ impl MediaUploader {
         
         // Upload in chunks for progress tracking
         let mut file = File::open(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let mut all_data = Vec::with_capacity(file_size as usize);
         let mut uploaded_bytes = 0u64;
@@ -247,7 +247,7 @@ impl MediaUploader {
         loop {
             let mut buffer = vec![0u8; self.config.chunk_size];
             let bytes_read = file.read(&mut buffer).await
-                .map_err(|e| Error::Io(e))?;
+                .map_err(|e| Error::from(e))?;
             
             if bytes_read == 0 {
                 break;

@@ -250,9 +250,9 @@ impl MediaManager {
     pub async fn clear_cache(&self) -> Result<()> {
         if let Some(cache_dir) = &self.cache_directory {
             tokio::fs::remove_dir_all(cache_dir).await
-                .map_err(|e| Error::Io(e))?;
+                .map_err(|e| Error::from(e))?;
             tokio::fs::create_dir_all(cache_dir).await
-                .map_err(|e| Error::Io(e))?;
+                .map_err(|e| Error::from(e))?;
         }
         Ok(())
     }
@@ -279,13 +279,13 @@ fn calculate_directory_size(dir_path: &str) -> std::pin::Pin<Box<dyn std::future
         let mut total_size = 0u64;
         
         let mut entries = tokio::fs::read_dir(dir_path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         while let Some(entry) = entries.next_entry().await
-            .map_err(|e| Error::Io(e))? {
+            .map_err(|e| Error::from(e))? {
             
             let metadata = entry.metadata().await
-                .map_err(|e| Error::Io(e))?;
+                .map_err(|e| Error::from(e))?;
             
             if metadata.is_file() {
                 total_size += metadata.len();

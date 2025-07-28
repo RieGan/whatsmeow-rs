@@ -147,7 +147,7 @@ impl MediaProcessor {
     pub async fn process_image<P: AsRef<Path>>(&self, file_path: P) -> Result<ProcessedMedia> {
         let path = file_path.as_ref();
         let metadata = tokio::fs::metadata(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let file_size = metadata.len();
         let filename = path.file_name()
@@ -156,7 +156,7 @@ impl MediaProcessor {
         
         // Read file data for analysis
         let data = tokio::fs::read(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         // Detect image format and get basic info
         let (mime_type, width, height, has_transparency) = self.analyze_image_data(&data)?;
@@ -188,7 +188,7 @@ impl MediaProcessor {
     pub async fn process_video<P: AsRef<Path>>(&self, file_path: P) -> Result<ProcessedMedia> {
         let path = file_path.as_ref();
         let metadata = tokio::fs::metadata(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let file_size = metadata.len();
         let filename = path.file_name()
@@ -197,12 +197,12 @@ impl MediaProcessor {
         
         // Read initial bytes for format detection
         let mut file = tokio::fs::File::open(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let mut header = vec![0u8; 1024];
         use tokio::io::AsyncReadExt;
         let bytes_read = file.read(&mut header).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         header.truncate(bytes_read);
         
         // Detect video format
@@ -241,7 +241,7 @@ impl MediaProcessor {
     pub async fn process_audio<P: AsRef<Path>>(&self, file_path: P) -> Result<ProcessedMedia> {
         let path = file_path.as_ref();
         let metadata = tokio::fs::metadata(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let file_size = metadata.len();
         let filename = path.file_name()
@@ -250,12 +250,12 @@ impl MediaProcessor {
         
         // Read initial bytes for format detection
         let mut file = tokio::fs::File::open(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let mut header = vec![0u8; 512];
         use tokio::io::AsyncReadExt;
         let bytes_read = file.read(&mut header).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         header.truncate(bytes_read);
         
         // Detect audio format
@@ -279,7 +279,7 @@ impl MediaProcessor {
     pub async fn process_document<P: AsRef<Path>>(&self, file_path: P) -> Result<ProcessedMedia> {
         let path = file_path.as_ref();
         let metadata = tokio::fs::metadata(path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         let file_size = metadata.len();
         let filename = path.file_name()

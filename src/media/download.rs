@@ -158,13 +158,13 @@ impl MediaDownloader {
         let data = self.download_to_bytes(media_info).await?;
         
         let mut file = File::create(output_path).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         file.write_all(&data).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         file.flush().await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         Ok(())
     }
@@ -333,7 +333,7 @@ impl MediaDownloader {
         // Check if partial file exists
         let partial_size = if output_path.exists() {
             tokio::fs::metadata(output_path).await
-                .map_err(|e| Error::Io(e))?
+                .map_err(|e| Error::from(e))?
                 .len()
         } else {
             0
@@ -355,10 +355,10 @@ impl MediaDownloader {
             .append(true)
             .open(output_path)
             .await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         file.write_all(&remaining_data).await
-            .map_err(|e| Error::Io(e))?;
+            .map_err(|e| Error::from(e))?;
         
         session.update_progress(session.total_size);
         

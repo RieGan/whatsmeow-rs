@@ -142,11 +142,11 @@ fn test_protobuf_utils() {
     assert_eq!(msg_key.from_me, Some(true));
 }
 
-#[test]
-fn test_memory_store() {
+#[tokio::test]
+async fn test_memory_store() {
     let store = MemoryStore::new();
     
     // Initially should have no device data
-    assert!(store.device_id().is_none());
-    assert!(store.registration_id().is_none());
+    assert!(!store.is_registered().await.unwrap());
+    assert!(store.load_device().await.unwrap().is_none());
 }

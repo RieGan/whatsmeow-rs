@@ -13,7 +13,7 @@ impl ProtoUtils {
     pub fn node_to_proto<T: Message + Default>(node: &Node) -> Result<T> {
         match &node.content {
             crate::binary::NodeContent::Binary(data) => {
-                T::decode(&data[..]).map_err(|e| Error::ProtobufDecode(e))
+                T::decode(&data[..]).map_err(|e| Error::from(e))
             },
             _ => Err(Error::Protocol("Node does not contain binary data".to_string()))
         }

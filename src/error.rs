@@ -2,22 +2,22 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("WebSocket error: {0}")]
-    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
+    WebSocket(String),
     
     #[error("JSON serialization error: {0}")]
-    Json(#[from] serde_json::Error),
+    Json(String),
     
     #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(String),
     
     #[error("URL parse error: {0}")]
-    UrlParse(#[from] url::ParseError),
+    UrlParse(String),
     
     #[error("Protobuf decode error: {0}")]
-    ProtobufDecode(#[from] prost::DecodeError),
+    ProtobufDecode(String),
     
     #[error("Cryptographic error: {0}")]
     Crypto(String),
@@ -48,4 +48,34 @@ pub enum Error {
     
     #[error("Database error: {0}")]
     Database(String),
+}
+
+impl From<tokio_tungstenite::tungstenite::Error> for Error {
+    fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
+        Error::WebSocket(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::Json(err.to_string())
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io(err.to_string())
+    }
+}
+
+impl From<url::ParseError> for Error {
+    fn from(err: url::ParseError) -> Self {
+        Error::UrlParse(err.to_string())
+    }
+}
+
+impl From<prost::DecodeError> for Error {
+    fn from(err: prost::DecodeError) -> Self {
+        Error::ProtobufDecode(err.to_string())
+    }
 }
