@@ -478,7 +478,7 @@ mod tests {
         flow.verify_challenge(&response).unwrap();
         
         let jid = JID::new("test".to_string(), "s.whatsapp.net".to_string());
-        let registration = flow.complete_registration(jid, "test_token".to_string()).unwrap();
+        let _registration = flow.complete_registration(jid, "test_token".to_string()).unwrap();
         
         let exported = flow.export_pairing_data().unwrap();
         assert!(!exported.is_empty());

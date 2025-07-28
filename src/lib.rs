@@ -15,6 +15,8 @@ pub mod auth;
 pub mod binary;
 pub mod client;
 pub mod error;
+pub mod group;
+pub mod media;
 pub mod messaging;
 pub mod proto;
 pub mod signal;

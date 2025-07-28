@@ -23,7 +23,7 @@ mod tests {
 }
 
 /// JID (Jabber ID) represents a WhatsApp user or group identifier
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct JID {
     pub user: String,
     pub agent: u8,

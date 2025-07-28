@@ -336,6 +336,11 @@ impl MultiDeviceManager {
         &self.account_jid
     }
     
+    /// Get own JID (alias for account_jid for backward compatibility)
+    pub fn get_own_jid(&self) -> JID {
+        self.account_jid.clone()
+    }
+    
     /// Get Signal protocol manager
     pub fn signal_manager(&mut self) -> &mut SignalProtocolManager {
         &mut self.signal_manager
@@ -363,7 +368,7 @@ pub struct MultiDeviceConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::{DeviceInfo, DeviceCapabilities, PairingKeysData, PreKeyBundleData};
+    use crate::auth::{DeviceInfo, PairingKeysData, PreKeyBundleData};
     
     fn create_test_registration(device_id: u32) -> DeviceRegistration {
         let mut device_info = DeviceInfo::default();
