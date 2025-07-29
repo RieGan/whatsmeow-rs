@@ -1,4 +1,4 @@
-use crate::types::{JID, MessageInfo};
+use crate::types::{JID, MessageInfo, MessageReceipt};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
@@ -18,7 +18,8 @@ pub enum Event {
     QRCode { code: String },
     
     /// Message events
-    Message(MessageEvent),
+    Message(MessageInfo),
+    MessageReceipt { receipt: MessageReceipt },
     MessageRevoke(MessageRevokeEvent),
     MessageAck(MessageAckEvent),
     
