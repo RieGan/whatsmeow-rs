@@ -13,7 +13,6 @@ use std::{
     time::{Duration, Instant},
     collections::HashMap,
 };
-use tokio::time::interval;
 use serde::{Serialize, Deserialize};
 
 /// Advanced pool configuration with dynamic sizing
@@ -62,7 +61,7 @@ impl Default for AdvancedPoolConfig {
 }
 
 /// Pool statistics for monitoring
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PoolStats {
     /// Current number of connections
     pub active_connections: u32,
@@ -123,8 +122,7 @@ impl AdvancedPoolManager {
             .await
             .map_err(|e| Error::Database(format!("Failed to create connection pool: {}", e)))?;
 
-        // Set initial pool size
-        pool.set_max_connections(config.max_connections).await;
+        // Note: SQLite pool doesn't support dynamic sizing like PostgreSQL
 
         let stats = Arc::new(RwLock::new(PoolStats {
             active_connections: 0,
@@ -239,8 +237,8 @@ impl AdvancedPoolManager {
         };
 
         if target_size != total_connections {
-            self.pool.set_max_connections(target_size).await;
-            tracing::debug!("Adjusted pool size from {} to {}", total_connections, target_size);
+            // Note: SQLite pool doesn't support dynamic resizing
+            tracing::debug!("Would adjust pool size from {} to {} (not supported by SQLite)", total_connections, target_size);
         }
 
         Ok(())
@@ -347,7 +345,7 @@ impl AdvancedPoolManager {
         interval: Duration,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            let mut timer = interval(interval);
+            let mut timer = tokio::time::interval(interval);
             
             loop {
                 timer.tick().await;
@@ -377,7 +375,7 @@ impl AdvancedPoolManager {
         cache_ttl: Duration,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            let mut timer = interval(interval);
+            let mut timer = tokio::time::interval(interval);
             
             loop {
                 timer.tick().await;
@@ -426,16 +424,19 @@ impl BatchOperations {
     }
 
     /// Execute operations in batches to minimize memory usage
-    pub async fn execute_batch<T, F>(&self, items: Vec<T>, operation: F) -> Result<()>
+    pub async fn execute_batch<T>(&self, items: Vec<T>, query: &str) -> Result<()>
     where
-        F: Fn(&mut sqlx::Transaction<sqlx::Sqlite>, &[T]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + '_>> + Send + Sync,
         T: Send + Sync,
     {
         for chunk in items.chunks(self.batch_size) {
             let mut tx = self.pool.begin().await
                 .map_err(|e| Error::Database(format!("Failed to begin batch transaction: {}", e)))?;
             
-            operation(&mut tx, chunk).await?;
+            for _item in chunk {
+                // This is simplified - you'd need to extract values from T based on columns
+                sqlx::query(query).execute(&mut *tx).await
+                    .map_err(|e| Error::Database(format!("Batch operation failed: {}", e)))?;
+            }
             
             tx.commit().await
                 .map_err(|e| Error::Database(format!("Failed to commit batch transaction: {}", e)))?;
@@ -455,16 +456,7 @@ impl BatchOperations {
                           columns.join(", "), 
                           placeholders);
 
-        self.execute_batch(items, |tx, batch| {
-            Box::pin(async move {
-                for item in batch {
-                    // This is simplified - you'd need to extract values from T based on columns
-                    sqlx::query(&query).execute(&mut **tx).await
-                        .map_err(|e| Error::Database(format!("Batch insert failed: {}", e)))?;
-                }
-                Ok(())
-            })
-        }).await
+        self.execute_batch(items, &query).await
     }
 }
 
