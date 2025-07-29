@@ -6,6 +6,10 @@ use crate::{
 };
 use std::collections::HashMap;
 use std::time::SystemTime;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
+use base64;
 
 /// Message builder for creating WhatsApp messages
 pub struct MessageBuilder {
