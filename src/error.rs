@@ -48,6 +48,9 @@ pub enum Error {
     
     #[error("Database error: {0}")]
     Database(String),
+    
+    #[error("Serialization error: {0}")]
+    Serialization(String),
 }
 
 impl From<tokio_tungstenite::tungstenite::Error> for Error {

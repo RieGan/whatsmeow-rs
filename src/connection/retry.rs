@@ -309,6 +309,9 @@ pub fn should_retry(error: &Error) -> bool {
                 _ => false,
             }
         }
+        
+        // Serialization errors are generally not retryable
+        Error::Serialization(_) => false,
     }
 }
 

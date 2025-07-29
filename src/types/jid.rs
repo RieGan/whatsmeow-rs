@@ -44,6 +44,15 @@ impl JID {
         }
     }
     
+    /// Get device ID from JID
+    pub fn device_id(&self) -> Option<u32> {
+        if self.device > 0 {
+            Some(self.device as u32)
+        } else {
+            None
+        }
+    }
+    
     /// Parse a JID from string format "user@server"
     pub fn parse(jid_str: &str) -> Result<Self, crate::error::Error> {
         let parts: Vec<&str> = jid_str.split('@').collect();

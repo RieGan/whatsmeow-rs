@@ -191,7 +191,7 @@ impl Client {
     /// Generate QR code for authentication
     pub async fn generate_qr(&self) -> Result<String> {
         let mut auth = self.auth_manager.lock().await;
-        let qr_string = auth.generate_qr()?;
+        let qr_string = auth.generate_qr().await?;
         
         self.emit_event(Event::QRCode { code: qr_string.clone() }).await;
         

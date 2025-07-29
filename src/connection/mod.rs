@@ -248,6 +248,7 @@ pub fn is_recoverable_error(error: &Error) -> bool {
         Error::ProtobufDecode(_) => false,
         Error::UrlParse(_) => false,
         Error::ElementMissing(_) => false,
+        Error::Serialization(_) => false,
     }
 }
 
