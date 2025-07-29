@@ -1,4 +1,5 @@
 use crate::{
+    appstate::{AppStateManager, AppStateManagerConfig, AppStateDataType, SyncRequest, SyncPriority},
     auth::{AuthManager, AuthState},
     connection::{
         ConnectionConfig, ConnectionEvent, ConnectionEventHandler,
@@ -6,10 +7,11 @@ use crate::{
         rate_limit::{MultiRateLimiter, RateLimitResult},
         retry::{RetryExecutor, RetryPolicy, RetryResult},
     },
+    database::Database,
     error::{Error, Result},
     messaging::{
         MessageBuilder, MessageQueue, MessageStatusTracker, MessageEditor,
-        MessageThreadManager, MessageProcessor
+        MessageThreadManager, FailedMessage
     },
     socket::NoiseSocket,
     store::DeviceStore,
@@ -31,6 +33,8 @@ pub struct ClientConfig {
     pub initial_auto_reconnect: bool,
     pub synchronous_ack: bool,
     pub connection_config: ConnectionConfig,
+    pub app_state_config: AppStateManagerConfig,
+    pub enable_app_state_sync: bool,
 }
 
 impl Default for ClientConfig {
@@ -40,6 +44,8 @@ impl Default for ClientConfig {
             initial_auto_reconnect: true,
             synchronous_ack: false,
             connection_config: ConnectionConfig::default(),
+            app_state_config: AppStateManagerConfig::default(),
+            enable_app_state_sync: true,
         }
     }
 }
@@ -55,21 +61,31 @@ pub struct Client {
     message_queue: Arc<Mutex<MessageQueue>>,
     message_status_tracker: Arc<MessageStatusTracker>,
     message_thread_manager: Arc<Mutex<MessageThreadManager>>,
-    media_manager: Arc<MediaManager>,
+    media_manager: Arc<tokio::sync::Mutex<MediaManager>>,
     connection_manager: Arc<Mutex<Option<ConnectionManager>>>,
     rate_limiter: Arc<MultiRateLimiter>,
     retry_executor: Arc<RetryExecutor>,
+    app_state_manager: Arc<Mutex<Option<AppStateManager>>>,
+    database: Arc<Database>,
 }
 
 impl Client {
     /// Create a new WhatsApp client
-    pub fn new(store: Arc<dyn DeviceStore>) -> Self {
-        Self::with_config(store, ClientConfig::default())
+    pub async fn new(store: Arc<dyn DeviceStore>, database: Arc<Database>) -> Result<Self> {
+        Self::with_config(store, database, ClientConfig::default()).await
     }
     
     /// Create a new WhatsApp client with custom configuration
-    pub fn with_config(store: Arc<dyn DeviceStore>, config: ClientConfig) -> Self {
-        Self {
+    pub async fn with_config(store: Arc<dyn DeviceStore>, database: Arc<Database>, config: ClientConfig) -> Result<Self> {
+        // Initialize app state manager if enabled
+        let app_state_manager = if config.enable_app_state_sync {
+            let manager = AppStateManager::with_config(database.clone(), config.app_state_config.clone()).await?;
+            Some(manager)
+        } else {
+            None
+        };
+
+        Ok(Self {
             store,
             socket: Arc::new(Mutex::new(None)),
             config: config.clone(),
@@ -79,11 +95,13 @@ impl Client {
             message_queue: Arc::new(Mutex::new(MessageQueue::new())),
             message_status_tracker: Arc::new(MessageStatusTracker::new()),
             message_thread_manager: Arc::new(Mutex::new(MessageThreadManager::new())),
-            media_manager: Arc::new(MediaManager::new()),
+            media_manager: Arc::new(tokio::sync::Mutex::new(MediaManager::new())),
             connection_manager: Arc::new(Mutex::new(None)),
             rate_limiter: Arc::new(MultiRateLimiter::new()),
             retry_executor: Arc::new(RetryExecutor::new(RetryPolicy::network_operations())),
-        }
+            app_state_manager: Arc::new(Mutex::new(app_state_manager)),
+            database,
+        })
     }
     
     /// Add an event handler
@@ -133,6 +151,13 @@ impl Client {
                 
                 self.emit_event(Event::Connected).await;
                 info!("Successfully connected to WhatsApp with connection manager");
+                
+                // Start app state sync if enabled
+                if self.config.enable_app_state_sync {
+                    if let Err(e) = self.start_app_state_sync().await {
+                        warn!("Failed to start app state sync: {}", e);
+                    }
+                }
             }
         } else {
             // Manual connection without reconnection management
@@ -163,6 +188,13 @@ impl Client {
                 RetryResult::Success(_) => {
                     self.emit_event(Event::Connected).await;
                     info!("Successfully connected to WhatsApp WebSocket");
+                    
+                    // Start app state sync if enabled
+                    if self.config.enable_app_state_sync {
+                        if let Err(e) = self.start_app_state_sync().await {
+                            warn!("Failed to start app state sync: {}", e);
+                        }
+                    }
                 }
                 RetryResult::Failed { error, attempts } => {
                     warn!("Failed to connect after {} attempts", attempts.len());
@@ -177,6 +209,13 @@ impl Client {
     /// Disconnect from WhatsApp
     pub async fn disconnect(&self) -> Result<()> {
         info!("Disconnecting from WhatsApp...");
+        
+        // Stop app state sync first
+        if self.config.enable_app_state_sync {
+            if let Err(e) = self.stop_app_state_sync().await {
+                warn!("Failed to stop app state sync: {}", e);
+            }
+        }
         
         // If using connection manager, disconnect through that
         let manager_guard = self.connection_manager.lock().await;
@@ -355,7 +394,7 @@ impl Client {
     /// Send a media message (image, video, audio, document)
     pub async fn send_media(&self, to: &JID, media_path: &str, caption: Option<String>) -> Result<String> {
         // Use media manager to process and upload the media
-        let media_info = self.media_manager.upload_media(media_path, crate::media::MediaType::Auto).await?;
+        let media_info = self.media_manager.lock().await.upload_media(media_path, crate::media::MediaType::Auto).await?;
         
         let media_message = MediaMessage {
             url: Some(media_info.url),
@@ -388,9 +427,9 @@ impl Client {
     
     /// Send a voice note
     pub async fn send_voice_note(&self, to: &JID, audio_path: &str) -> Result<String> {
-        let media_info = self.media_manager.upload_media(audio_path, crate::media::MediaType::Audio).await?;
+        let media_info = self.media_manager.lock().await.upload_media(audio_path, crate::media::MediaType::Audio).await?;
         
-        let mut media_message = MediaMessage {
+        let media_message = MediaMessage {
             url: Some(media_info.url),
             direct_path: media_info.direct_path,
             media_key: Some(media_info.media_key),
@@ -617,9 +656,12 @@ impl Client {
     }
     
     /// Get recent messages from a chat
-    pub async fn get_recent_messages(&self, chat_id: &str, count: usize) -> Vec<&MessageInfo> {
+    pub async fn get_recent_messages(&self, chat_id: &str, count: usize) -> Vec<MessageInfo> {
         let thread_manager = self.message_thread_manager.lock().await;
         thread_manager.get_recent_messages(chat_id, count)
+            .into_iter()
+            .cloned()
+            .collect()
     }
     
     /// Process incoming message receipt
@@ -666,7 +708,7 @@ impl Client {
     }
     
     /// Get failed messages
-    pub async fn get_failed_messages(&self) -> Vec<crate::messaging::FailedMessage> {
+    pub async fn get_failed_messages(&self) -> Vec<FailedMessage> {
         let queue = self.message_queue.lock().await;
         queue.failed_messages().to_vec()
     }
@@ -675,6 +717,190 @@ impl Client {
     pub async fn get_message_queue_stats(&self) -> (usize, usize) {
         let queue = self.message_queue.lock().await;
         (queue.len(), queue.failed_messages().len())
+    }
+
+    // ===== APP STATE MANAGEMENT METHODS =====
+
+    /// Start app state manager
+    pub async fn start_app_state_sync(&self) -> Result<()> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            manager.start().await?;
+            info!("App state synchronization started");
+        } else {
+            warn!("App state sync is not enabled in client configuration");
+        }
+        Ok(())
+    }
+
+    /// Stop app state manager
+    pub async fn stop_app_state_sync(&self) -> Result<()> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            manager.stop().await?;
+            info!("App state synchronization stopped");
+        }
+        Ok(())
+    }
+
+    /// Request full app state sync
+    pub async fn sync_app_state(&self) -> Result<Vec<String>> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            let session_ids = manager.request_full_sync().await?;
+            info!("Initiated full app state sync with {} sessions", session_ids.len());
+            Ok(session_ids)
+        } else {
+            Err(Error::Protocol("App state sync is not enabled".to_string()))
+        }
+    }
+
+    /// Request sync for specific data type
+    pub async fn sync_data_type(&self, data_type: AppStateDataType) -> Result<String> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            let session_id = manager.request_sync_for_type(data_type).await?;
+            debug!("Started sync session {} for data type", session_id);
+            Ok(session_id)
+        } else {
+            Err(Error::Protocol("App state sync is not enabled".to_string()))
+        }
+    }
+
+    /// Get app state manager status
+    pub async fn get_app_state_status(&self) -> Result<crate::appstate::AppStateManagerStatus> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            Ok(manager.get_status().await)
+        } else {
+            Err(Error::Protocol("App state sync is not enabled".to_string()))
+        }
+    }
+
+    /// Get contact sync handler
+    pub async fn get_contact_sync(&self) -> Result<Arc<crate::appstate::ContactSync>> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            Ok(manager.contact_sync())
+        } else {
+            Err(Error::Protocol("App state sync is not enabled".to_string()))
+        }
+    }
+
+    /// Get chat metadata sync handler
+    pub async fn get_chat_metadata_sync(&self) -> Result<Arc<crate::appstate::ChatMetadataSync>> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            Ok(manager.chat_metadata_sync())
+        } else {
+            Err(Error::Protocol("App state sync is not enabled".to_string()))
+        }
+    }
+
+    /// Get settings sync handler  
+    pub async fn get_settings_sync(&self) -> Result<Arc<crate::appstate::SettingsSync>> {
+        let manager_guard = self.app_state_manager.lock().await;
+        if let Some(ref manager) = *manager_guard {
+            Ok(manager.settings_sync())
+        } else {
+            Err(Error::Protocol("App state sync is not enabled".to_string()))
+        }
+    }
+
+    /// Archive a chat
+    pub async fn archive_chat(&self, jid: &JID) -> Result<()> {
+        let chat_sync = self.get_chat_metadata_sync().await?;
+        chat_sync.archive_chat(jid).await?;
+        
+        // Trigger sync for chat metadata
+        let _ = self.sync_data_type(AppStateDataType::ChatMetadata).await;
+        
+        Ok(())
+    }
+
+    /// Pin a chat
+    pub async fn pin_chat(&self, jid: &JID) -> Result<()> {
+        let chat_sync = self.get_chat_metadata_sync().await?;
+        chat_sync.pin_chat(jid).await?;
+        
+        // Trigger sync for chat metadata
+        let _ = self.sync_data_type(AppStateDataType::ChatMetadata).await;
+        
+        Ok(())
+    }
+
+    /// Mute a chat
+    pub async fn mute_chat(&self, jid: &JID, duration_seconds: Option<u64>) -> Result<()> {
+        let chat_sync = self.get_chat_metadata_sync().await?;
+        chat_sync.mute_chat(jid, duration_seconds).await?;
+        
+        // Trigger sync for chat metadata
+        let _ = self.sync_data_type(AppStateDataType::ChatMetadata).await;
+        
+        Ok(())
+    }
+
+    /// Update privacy settings
+    pub async fn update_privacy_settings(&self, privacy: crate::appstate::PrivacySettings) -> Result<()> {
+        let settings_sync = self.get_settings_sync().await?;
+        settings_sync.update_privacy_settings("default", privacy).await?;
+        
+        // Trigger sync for settings
+        let _ = self.sync_data_type(AppStateDataType::Settings).await;
+        
+        Ok(())
+    }
+
+    /// Update notification settings
+    pub async fn update_notification_settings(&self, notifications: crate::appstate::NotificationSettings) -> Result<()> {
+        let settings_sync = self.get_settings_sync().await?;
+        settings_sync.update_notification_settings("default", notifications).await?;
+        
+        // Trigger sync for settings
+        let _ = self.sync_data_type(AppStateDataType::Settings).await;
+        
+        Ok(())
+    }
+
+    /// Get user settings
+    pub async fn get_user_settings(&self) -> Result<Option<crate::appstate::UserSettings>> {
+        let settings_sync = self.get_settings_sync().await?;
+        Ok(settings_sync.get_settings("default").await)
+    }
+
+    /// Search contacts
+    pub async fn search_contacts(&self, filter: crate::appstate::ContactFilter) -> Result<Vec<crate::appstate::Contact>> {
+        let contact_sync = self.get_contact_sync().await?;
+        Ok(contact_sync.search_contacts(filter).await)
+    }
+
+    /// Get contact by JID
+    pub async fn get_contact(&self, jid: &JID) -> Result<Option<crate::appstate::Contact>> {
+        let contact_sync = self.get_contact_sync().await?;
+        Ok(contact_sync.get_contact(jid).await)
+    }
+
+    /// Block a contact
+    pub async fn block_contact(&self, jid: &JID) -> Result<()> {
+        let contact_sync = self.get_contact_sync().await?;
+        contact_sync.block_contact(jid).await?;
+        
+        // Trigger sync for contacts
+        let _ = self.sync_data_type(AppStateDataType::Contacts).await;
+        
+        Ok(())
+    }
+
+    /// Get chat metadata
+    pub async fn get_chat_metadata(&self, jid: &JID) -> Result<Option<crate::appstate::ChatMetadata>> {
+        let chat_sync = self.get_chat_metadata_sync().await?;
+        Ok(chat_sync.get_chat_metadata(jid).await)
+    }
+
+    /// Search chats
+    pub async fn search_chats(&self, filter: crate::appstate::ChatFilter) -> Result<Vec<crate::appstate::ChatMetadata>> {
+        let chat_sync = self.get_chat_metadata_sync().await?;
+        Ok(chat_sync.search_chats(filter).await)
     }
 }
 

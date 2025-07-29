@@ -11,6 +11,7 @@
 //! This is a port of the Go library [whatsmeow](https://github.com/tulir/whatsmeow)
 //! to Rust, providing async/await support and Rust ecosystem integration.
 
+pub mod appstate;
 pub mod auth;
 pub mod binary;
 pub mod client;
