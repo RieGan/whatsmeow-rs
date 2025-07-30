@@ -5,6 +5,9 @@ pub mod manager;
 pub mod metadata;
 pub mod participants;
 pub mod permissions;
+pub mod community;
+pub mod announcement;
+pub mod disappearing;
 
 use crate::{
     error::{Error, Result},
@@ -19,6 +22,9 @@ pub use manager::{GroupManager, GroupManagerConfig};
 pub use metadata::{GroupMetadataManager, GroupMetadata};
 pub use participants::{ParticipantManager, GroupParticipant, ParticipantRole, ParticipantStatus, ParticipantOperationResult};
 pub use permissions::{PermissionManager, GroupPermissions};
+pub use community::{CommunityInfo, CommunityManager, CommunitySettings, CreateCommunityRequest, CommunityEvent, AddGroupToCommunityRequest};
+pub use announcement::{AnnouncementGroupManager, AnnouncementGroupConfig, AnnouncementMessage, AnnouncementPriority, MemberAnnouncementStatus};
+pub use disappearing::{GroupDisappearingManager, GroupDisappearingConfig, DisappearingTimer, DisappearingMessage, MessageContentType};
 
 /// Group management service for WhatsApp groups
 pub struct GroupService {
@@ -30,6 +36,14 @@ pub struct GroupService {
     device_manager: MultiDeviceManager,
     /// Cache of group information
     group_cache: HashMap<JID, GroupInfo>,
+    /// Community manager for community groups
+    community_manager: CommunityManager,
+    /// Announcement group manager
+    announcement_manager: AnnouncementGroupManager,
+    /// Disappearing messages manager
+    disappearing_manager: GroupDisappearingManager,
+    /// Permission manager
+    permission_manager: PermissionManager,
 }
 
 impl GroupService {
@@ -43,6 +57,10 @@ impl GroupService {
             signal_manager,
             device_manager,
             group_cache: HashMap::new(),
+            community_manager: CommunityManager::new(),
+            announcement_manager: AnnouncementGroupManager::new(),
+            disappearing_manager: GroupDisappearingManager::new(),
+            permission_manager: PermissionManager::new(),
         }
     }
     
@@ -313,6 +331,261 @@ impl GroupService {
     /// Get cached groups
     pub fn get_cached_groups(&self) -> Vec<&GroupInfo> {
         self.group_cache.values().collect()
+    }
+    
+    // ========== PHASE 4: ADVANCED GROUP FEATURES ==========
+    
+    // ===== Community Groups =====
+    
+    /// Create a new community
+    pub async fn create_community(
+        &mut self,
+        request: CreateCommunityRequest,
+    ) -> Result<CommunityInfo> {
+        let creator = self.device_manager.get_own_jid();
+        let community_info = self.community_manager
+            .create_community(request, creator)
+            .await?;
+        
+        tracing::info!("Created community: {}", community_info.name);
+        
+        Ok(community_info)
+    }
+    
+    /// Add a group to a community
+    pub async fn add_group_to_community(
+        &mut self,
+        community_jid: &JID,
+        group_jid: &JID,
+        merge_members: bool,
+    ) -> Result<()> {
+        // Get group info for member merging
+        let group_info = self.get_group_info(group_jid).await?;
+        
+        let request = AddGroupToCommunityRequest::new(community_jid.clone(), group_jid.clone())
+            .with_merge_members(merge_members);
+        
+        self.community_manager
+            .add_group_to_community(request, &group_info)
+            .await?;
+        
+        tracing::info!("Added group {} to community {}", group_jid, community_jid);
+        
+        Ok(())
+    }
+    
+    /// Remove a group from a community
+    pub async fn remove_group_from_community(
+        &mut self,
+        community_jid: &JID,
+        group_jid: &JID,
+    ) -> Result<()> {
+        self.community_manager
+            .remove_group_from_community(community_jid, group_jid)
+            .await?;
+        
+        tracing::info!("Removed group {} from community {}", group_jid, community_jid);
+        
+        Ok(())
+    }
+    
+    /// Get community information
+    pub fn get_community(&self, community_jid: &JID) -> Option<&CommunityInfo> {
+        self.community_manager.get_community(community_jid)
+    }
+    
+    /// Get all communities
+    pub fn get_all_communities(&self) -> Vec<&CommunityInfo> {
+        self.community_manager.get_all_communities()
+    }
+    
+    /// Find community for a group
+    pub fn find_community_for_group(&self, group_jid: &JID) -> Option<&JID> {
+        self.community_manager.find_community_for_group(group_jid)
+    }
+    
+    // ===== Announcement Groups =====
+    
+    /// Configure group as announcement group
+    pub fn configure_announcement_group(
+        &mut self,
+        group_jid: &JID,
+        config: AnnouncementGroupConfig,
+    ) -> Result<()> {
+        self.announcement_manager
+            .configure_announcement_group(group_jid.clone(), config)?;
+        
+        // Update group settings
+        if let Some(cached_group) = self.group_cache.get_mut(group_jid) {
+            AnnouncementGroupManager::convert_to_announcement_group(&mut cached_group.settings);
+        }
+        
+        tracing::info!("Configured announcement group: {}", group_jid);
+        
+        Ok(())
+    }
+    
+    /// Post announcement to group
+    pub async fn post_announcement(
+        &mut self,
+        group_jid: &JID,
+        announcement: AnnouncementMessage,
+    ) -> Result<String> {
+        let sender = self.device_manager.get_own_jid();
+        let group_info = self.get_group_info(group_jid).await?;
+        
+        let announcement_id = self.announcement_manager
+            .post_announcement(group_jid, announcement, &sender, &group_info)?;
+        
+        tracing::info!("Posted announcement {} to group {}", announcement_id, group_jid);
+        
+        Ok(announcement_id)
+    }
+    
+    /// Pin an announcement
+    pub async fn pin_announcement(
+        &mut self,
+        group_jid: &JID,
+        announcement_id: &str,
+    ) -> Result<()> {
+        let sender = self.device_manager.get_own_jid();
+        let group_info = self.get_group_info(group_jid).await?;
+        
+        self.announcement_manager
+            .pin_announcement(group_jid, announcement_id, &sender, &group_info)?;
+        
+        tracing::info!("Pinned announcement {} in group {}", announcement_id, group_jid);
+        
+        Ok(())
+    }
+    
+    /// Get announcements for group
+    pub fn get_announcements(&self, group_jid: &JID) -> Option<&Vec<AnnouncementMessage>> {
+        self.announcement_manager.get_announcements(group_jid)
+    }
+    
+    /// Get pinned announcements
+    pub fn get_pinned_announcements(&self, group_jid: &JID) -> Vec<&AnnouncementMessage> {
+        self.announcement_manager.get_pinned_announcements(group_jid)
+    }
+    
+    /// Mark announcement as read
+    pub fn mark_announcement_read(
+        &mut self,
+        group_jid: &JID,
+        announcement_id: &str,
+    ) -> Result<()> {
+        let member = self.device_manager.get_own_jid();
+        self.announcement_manager
+            .mark_announcement_read(group_jid, announcement_id, &member)
+    }
+    
+    // ===== Disappearing Messages =====
+    
+    /// Enable disappearing messages for a group
+    pub async fn enable_disappearing_messages(
+        &mut self,
+        group_jid: &JID,
+        timer: DisappearingTimer,
+    ) -> Result<()> {
+        let enabled_by = self.device_manager.get_own_jid();
+        let group_info = self.get_group_info(group_jid).await?;
+        
+        self.disappearing_manager
+            .enable_disappearing_messages(group_jid, timer.clone(), enabled_by, &group_info)?;
+        
+        // Update cached group settings
+        if let Some(cached_group) = self.group_cache.get_mut(group_jid) {
+            let config = self.disappearing_manager.get_config(group_jid).unwrap();
+            GroupDisappearingManager::apply_to_group_settings(config, &mut cached_group.settings);
+        }
+        
+        tracing::info!("Enabled disappearing messages for group: {}", group_jid);
+        
+        Ok(())
+    }
+    
+    /// Disable disappearing messages for a group
+    pub async fn disable_disappearing_messages(
+        &mut self,
+        group_jid: &JID,
+    ) -> Result<()> {
+        let disabled_by = self.device_manager.get_own_jid();
+        let group_info = self.get_group_info(group_jid).await?;
+        
+        self.disappearing_manager
+            .disable_disappearing_messages(group_jid, disabled_by, &group_info)?;
+        
+        // Update cached group settings
+        if let Some(cached_group) = self.group_cache.get_mut(group_jid) {
+            cached_group.settings.disappearing_messages = None;
+        }
+        
+        tracing::info!("Disabled disappearing messages for group: {}", group_jid);
+        
+        Ok(())
+    }
+    
+    /// Schedule a message for disappearing
+    pub fn schedule_disappearing_message(
+        &mut self,
+        message_id: String,
+        group_jid: &JID,
+        content_type: MessageContentType,
+    ) -> Result<()> {
+        let sender = self.device_manager.get_own_jid();
+        self.disappearing_manager
+            .schedule_message(message_id, group_jid, sender, content_type)
+    }
+    
+    /// Process all disappearing messages (should be called periodically)
+    pub async fn process_disappearing_messages(&mut self) -> Result<Vec<(JID, String)>> {
+        self.disappearing_manager.process_disappearing_messages().await
+    }
+    
+    /// Check if disappearing messages are enabled for a group
+    pub fn are_disappearing_messages_enabled(&self, group_jid: &JID) -> bool {
+        self.disappearing_manager.is_enabled(group_jid)
+    }
+    
+    // ===== Advanced Permissions =====
+    
+    /// Check if a participant has a specific permission
+    pub async fn has_permission(
+        &mut self,
+        group_jid: &JID,
+        participant_jid: &JID,
+        permission: &str,
+        role: ParticipantRole,
+    ) -> Result<bool> {
+        self.permission_manager
+            .has_permission(group_jid, participant_jid, permission, role)
+            .await
+    }
+    
+    /// Apply permission template to group
+    pub async fn apply_permission_template(
+        &mut self,
+        group_jid: &JID,
+        template_id: &str,
+    ) -> Result<GroupPermissions> {
+        let permissions = self.permission_manager
+            .apply_template(group_jid, template_id)
+            .await?;
+        
+        tracing::info!("Applied permission template {} to group {}", template_id, group_jid);
+        
+        Ok(permissions)
+    }
+    
+    /// Get permissions for a group
+    pub async fn get_group_permissions(&mut self, group_jid: &JID) -> Result<GroupPermissions> {
+        self.permission_manager.get_permissions(group_jid).await
+    }
+    
+    /// Get available permission templates
+    pub fn get_permission_templates(&self) -> &HashMap<String, permissions::PermissionTemplate> {
+        self.permission_manager.get_templates()
     }
     
     // Permission checking methods

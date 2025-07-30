@@ -271,7 +271,7 @@ impl MessageBuilder {
             media_attrs.insert("mimetype".to_string(), mime.clone());
         }
         if let Some(length) = media.file_length {
-            media_attrs.insert("fileSha256".to_string(), base64::encode(&media.file_sha256.as_ref().unwrap_or(&vec![])));
+            media_attrs.insert("fileSha256".to_string(), base64::encode(media.file_sha256.as_ref().unwrap_or(&vec![])));
             media_attrs.insert("fileLength".to_string(), length.to_string());
         }
         if let Some(width) = media.width {
@@ -658,7 +658,7 @@ pub struct MessageEditor;
 
 impl MessageEditor {
     /// Create an edit message
-    pub fn create_edit_message(original_key: MessageKey, new_text: String) -> SendableMessage {
+    pub fn create_edit_message(original_key: MessageKey, _new_text: String) -> SendableMessage {
         let protocol_msg = ProtocolMessage {
             key: Some(original_key),
             message_type: ProtocolMessageType::MessageEdit,

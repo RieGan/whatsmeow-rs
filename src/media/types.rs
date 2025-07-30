@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 /// Type of media content
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MediaType {
+    /// Auto-detect from file extension/MIME type
+    Auto,
     /// Static image (JPEG, PNG, WebP)
     Image,
     /// Video file (MP4, AVI, etc.)
@@ -29,6 +31,7 @@ impl MediaType {
     /// Get expected MIME types for this media type
     pub fn expected_mime_types(&self) -> Vec<&'static str> {
         match self {
+            MediaType::Auto => vec![], // Auto detection doesn't restrict MIME types
             MediaType::Image => vec![
                 "image/jpeg", "image/png", "image/webp", "image/gif"
             ],
@@ -57,9 +60,10 @@ impl MediaType {
         }
     }
     
-    /// Get maximum file size for this media type (in bytes)
+    /// Get maximum file size for this media type (in bytes)  
     pub fn max_file_size(&self) -> u64 {
         match self {
+            MediaType::Auto => 100 * 1024 * 1024, // 100MB for auto detection
             MediaType::Image => 16 * 1024 * 1024,        // 16 MB
             MediaType::Video => 64 * 1024 * 1024,        // 64 MB
             MediaType::Audio => 16 * 1024 * 1024,        // 16 MB
@@ -89,7 +93,7 @@ pub struct MediaInfo {
     /// Media URL for download
     pub url: String,
     /// Direct path for WhatsApp servers
-    pub direct_path: String,
+    pub direct_path: Option<String>,
     /// Media key for decryption
     pub media_key: Vec<u8>,
     /// File SHA256 hash
@@ -102,18 +106,29 @@ pub struct MediaInfo {
     pub mime_type: String,
     /// Upload timestamp
     pub upload_timestamp: u64,
+    /// Media type detected
+    pub media_type: MediaType,
+    /// Image/video width
+    pub width: Option<u32>,
+    /// Image/video height
+    pub height: Option<u32>,
+    /// Audio/video duration in seconds
+    pub duration: Option<u32>,
+    /// Thumbnail data
+    pub thumbnail: Option<Vec<u8>>,
 }
 
 impl MediaInfo {
     /// Create new media info
     pub fn new(
         url: String,
-        direct_path: String,
+        direct_path: Option<String>,
         media_key: Vec<u8>,
         file_sha256: Vec<u8>,
         file_enc_sha256: Vec<u8>,
         file_length: u64,
         mime_type: String,
+        media_type: MediaType,
     ) -> Self {
         Self {
             url,
@@ -127,13 +142,18 @@ impl MediaInfo {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
+            media_type,
+            width: None,
+            height: None,
+            duration: None,
+            thumbnail: None,
         }
     }
     
     /// Validate media info completeness
     pub fn validate(&self) -> bool {
         !self.url.is_empty() &&
-        !self.direct_path.is_empty() &&
+        self.direct_path.as_ref().map_or(true, |p| !p.is_empty()) &&
         !self.media_key.is_empty() &&
         self.media_key.len() == 32 &&
         !self.file_sha256.is_empty() &&
